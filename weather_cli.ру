@@ -1,0 +1,83 @@
+#!/usr/bin/env python3
+"""
+Консольное приложение для получения текущей погоды через OpenWeatherMap API.
+"""
+
+import os
+import sys
+import json
+import requests
+from dotenv import load_dotenv
+
+# Загрузка API-ключа из .env файла
+load_dotenv()
+API_KEY = os.getenv("OPENWEATHER_API_KEY")
+BASE_URL = "https://api.openweathermap.org/data/2.5/weather"
+
+def get_weather(city_name):
+    """Получить и вернуть данные о погоде для указанного города."""
+    params = {
+        "q": city_name,
+        "appid": API_KEY,
+        "units": "metric",   # градусы Цельсия
+        "lang": "ru"         # описание на русском
+    }
+    try:
+        response = requests.get(BASE_URL, params=params, timeout=10)
+        response.raise_for_status()
+        return response.json()
+    except requests.exceptions.HTTPError as e:
+        if response.status_code == 401:
+            print("Ошибка: Неверный API ключ.")
+        elif response.status_code == 404:
+            print(f"Ошибка: Город '{city_name}' не найден.")
+        else:
+            print(f"HTTP ошибка: {e}")
+    except requests.exceptions.ConnectionError:
+        print("Ошибка: Нет подключения к интернету.")
+    except requests.exceptions.Timeout:
+        print("Ошибка: Таймаут запроса.")
+    except Exception as e:
+        print(f"Непредвиденная ошибка: {e}")
+    return None
+
+def display_weather(data):
+    """Вывод структурированных данных о погоде."""
+    print("\n" + "="*50)
+    print(f"Погода в городе: {data['name']}, {data['sys']['country']}")
+    print("="*50)
+    print(f"Температура: {data['main']['temp']}°C (ощущается как {data['main']['feels_like']}°C)")
+    print(f"Влажность: {data['main']['humidity']}%")
+    print(f"Давление: {data['main']['pressure']} гПа")
+    print(f"Ветер: {data['wind']['speed']} м/с")
+    print(f"Облачность: {data['clouds']['all']}%")
+    print(f"Описание: {data['weather'][0]['description'].capitalize()}")
+    print("="*50 + "\n")
+
+def main():
+    if not API_KEY:
+        print("Ошибка: API ключ не найден. Создайте файл .env с переменной OPENWEATHER_API_KEY")
+        sys.exit(1)
+
+    print("=== Консольный метеорологический клиент ===")
+    while True:
+        city = input("Введите название города (или 'выход' для завершения): ").strip()
+        if city.lower() in ('выход', 'exit', 'quit'):
+            print("До свидания!")
+            break
+        if not city:
+            print("Название города не может быть пустым.")
+            continue
+
+        weather_data = get_weather(city)
+        if weather_data:
+            display_weather(weather_data)
+            # Опционально: сохранить в JSON
+            with open(f"{city}_weather.json", "w", encoding="utf-8") as f:
+                json.dump(weather_data, f, indent=2, ensure_ascii=False)
+            print(f"Данные сохранены в файл {city}_weather.json")
+        else:
+            print("Попробуйте снова.\n")
+
+if __name__ == "__main__":
+    main()
